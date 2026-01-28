@@ -1,7 +1,9 @@
-const router = require("express").Router();
-const pool = require("../db");
-const auth = require("../middleware/auth");
-const sendMail = require("../utils/mailer");
+import { Router } from "express";
+import pool from "../db.js";
+import auth from "../middleware/auth.js";
+import sendMail from "../utils/mailer.js";
+
+const router = Router();
 
 /**
  * GET all companies (with filters)
@@ -14,7 +16,7 @@ router.get("/", auth(), async (req, res) => {
 
     let query = `
       SELECT id, name, domain, location, eligibility_criteria,
-             branches_allowed, package
+             branches_allowed, salary_package
       FROM companies
       WHERE 1=1
     `;
@@ -28,7 +30,7 @@ router.get("/", auth(), async (req, res) => {
     }
 
     if (minPackage) {
-      query += ` AND package >= $${idx}`;
+      query += ` AND salary_package >= $${idx}`;
       values.push(minPackage);
       idx++;
     }
@@ -39,7 +41,7 @@ router.get("/", auth(), async (req, res) => {
       idx++;
     }
 
-    query += ` ORDER BY package DESC`;
+    query += ` ORDER BY salary_package DESC`;
 
     const result = await pool.query(query, values);
     res.status(200).json({ companies: result.rows });
@@ -60,7 +62,7 @@ router.get("/:id", auth(), async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, name, domain, location, eligibility_criteria,
-              branches_allowed, package
+              branches_allowed, salary_package
        FROM companies
        WHERE id = $1`,
       [id]
@@ -81,7 +83,6 @@ router.get("/:id", auth(), async (req, res) => {
 /**
  * CREATE new company
  * Admin only
- * AUTOMATED MAIL TRIGGER HERE
  * /api/company
  */
 router.post("/", auth("admin"), async (req, res) => {
@@ -92,20 +93,20 @@ router.post("/", auth("admin"), async (req, res) => {
       location,
       eligibility_criteria,
       branches_allowed,
-      package,
+      salary_package,
       min_cgpa,
       required_skills
     } = req.body;
 
-    if (!name || !branches_allowed || !package || !min_cgpa) {
+    if (!name || !branches_allowed || !salary_package || !min_cgpa) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // 1️⃣ Insert company
+    // Insert company
     const companyResult = await pool.query(
       `INSERT INTO companies
        (name, domain, location, eligibility_criteria,
-        branches_allowed, package, min_cgpa, required_skills)
+        branches_allowed, salary_package, min_cgpa, required_skills)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
       [
@@ -114,13 +115,13 @@ router.post("/", auth("admin"), async (req, res) => {
         location,
         eligibility_criteria,
         branches_allowed,
-        package,
+        salary_package,
         min_cgpa,
         required_skills
       ]
     );
 
-    // 2️⃣ Find eligible students
+    // Find eligible students
     const students = await pool.query(
       `SELECT name, email
        FROM students
@@ -131,7 +132,7 @@ router.post("/", auth("admin"), async (req, res) => {
       [min_cgpa, branches_allowed, required_skills]
     );
 
-    // 3️⃣ Send automated mails
+    // Send notification emails
     for (const student of students.rows) {
       await sendMail(
         student.email,
@@ -143,7 +144,7 @@ A new company "${name}" has opened placement registrations.
 You are eligible based on your profile.
 Please login to the placement portal to apply.
 
-– NFSU Dharwad Placement Cell`
+– Placement Cell`
       );
     }
 
@@ -170,7 +171,7 @@ router.put("/:id", auth("admin"), async (req, res) => {
     const result = await pool.query(
       `UPDATE companies
        SET name=$1, domain=$2, location=$3,
-           eligibility_criteria=$4, branches_allowed=$5, package=$6
+           eligibility_criteria=$4, branches_allowed=$5, salary_package=$6
        WHERE id=$7
        RETURNING *`,
       [
@@ -179,7 +180,7 @@ router.put("/:id", auth("admin"), async (req, res) => {
         req.body.location,
         req.body.eligibility_criteria,
         req.body.branches_allowed,
-        req.body.package,
+        req.body.salary_package,
         id
       ]
     );
@@ -219,4 +220,4 @@ router.delete("/:id", auth("admin"), async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
