@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -8,6 +8,9 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+/**
+ * Send email utility
+ */
 const sendMail = async (to, subject, text) => {
   await transporter.sendMail({
     from: "NFSU Dharwad Placement Cell <yourcollegeplacement@gmail.com>",
@@ -17,4 +20,4 @@ const sendMail = async (to, subject, text) => {
   });
 };
 
-module.exports = sendMail;
+export default sendMail;
