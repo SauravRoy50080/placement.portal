@@ -1,5 +1,9 @@
 import jwt from "jsonwebtoken";
 
+/**
+ * JWT Authentication & Role Authorization Middleware
+ * @param {string|null} role - "admin" | "student" | null
+ */
 const auth = (role = null) => {
   return (req, res, next) => {
     try {
