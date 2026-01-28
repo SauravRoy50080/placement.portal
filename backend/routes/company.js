@@ -1,20 +1,49 @@
 const router = require("express").Router();
 const pool = require("../db");
 const auth = require("../middleware/auth");
+const sendMail = require("../utils/mailer");
 
 /**
- * GET all companies
- * Accessible by both admin and students
- * /api/company
+ * GET all companies (with filters)
+ * Accessible by admin & students
+ * /api/company?branch=CSE&minPackage=600000&domain=IT
  */
 router.get("/", auth(), async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT id, name, domain, location, eligibility_criteria, branches_allowed, package
-       FROM companies
-       ORDER BY package DESC`
-    );
+    const { branch, minPackage, domain } = req.query;
+
+    let query = `
+      SELECT id, name, domain, location, eligibility_criteria,
+             branches_allowed, package
+      FROM companies
+      WHERE 1=1
+    `;
+    let values = [];
+    let idx = 1;
+
+    if (branch) {
+      query += ` AND $${idx} = ANY(branches_allowed)`;
+      values.push(branch);
+      idx++;
+    }
+
+    if (minPackage) {
+      query += ` AND package >= $${idx}`;
+      values.push(minPackage);
+      idx++;
+    }
+
+    if (domain) {
+      query += ` AND domain ILIKE $${idx}`;
+      values.push(`%${domain}%`);
+      idx++;
+    }
+
+    query += ` ORDER BY package DESC`;
+
+    const result = await pool.query(query, values);
     res.status(200).json({ companies: result.rows });
+
   } catch (err) {
     console.error("Fetch companies error:", err.message);
     res.status(500).json({ error: "Internal server error" });
@@ -23,14 +52,15 @@ router.get("/", auth(), async (req, res) => {
 
 /**
  * GET single company by ID
- * Accessible by both admin and students
  * /api/company/:id
  */
 router.get("/:id", auth(), async (req, res) => {
   try {
     const { id } = req.params;
+
     const result = await pool.query(
-      `SELECT id, name, domain, location, eligibility_criteria, branches_allowed, package
+      `SELECT id, name, domain, location, eligibility_criteria,
+              branches_allowed, package
        FROM companies
        WHERE id = $1`,
       [id]
@@ -41,6 +71,7 @@ router.get("/:id", auth(), async (req, res) => {
     }
 
     res.status(200).json({ company: result.rows[0] });
+
   } catch (err) {
     console.error("Fetch company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
@@ -50,28 +81,78 @@ router.get("/:id", auth(), async (req, res) => {
 /**
  * CREATE new company
  * Admin only
+ * AUTOMATED MAIL TRIGGER HERE
  * /api/company
  */
 router.post("/", auth("admin"), async (req, res) => {
   try {
-    const { name, domain, location, eligibility_criteria, branches_allowed, package } = req.body;
+    const {
+      name,
+      domain,
+      location,
+      eligibility_criteria,
+      branches_allowed,
+      package,
+      min_cgpa,
+      required_skills
+    } = req.body;
 
-    // Validate input
-    if (!name || !domain || !location || !eligibility_criteria || !branches_allowed || !package) {
-      return res.status(400).json({ error: "All fields are required" });
+    if (!name || !branches_allowed || !package || !min_cgpa) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const result = await pool.query(
-      `INSERT INTO companies (name, domain, location, eligibility_criteria, branches_allowed, package)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, domain, location, eligibility_criteria, branches_allowed, package`,
-      [name, domain, location, eligibility_criteria, branches_allowed, package]
+    // 1️⃣ Insert company
+    const companyResult = await pool.query(
+      `INSERT INTO companies
+       (name, domain, location, eligibility_criteria,
+        branches_allowed, package, min_cgpa, required_skills)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [
+        name,
+        domain,
+        location,
+        eligibility_criteria,
+        branches_allowed,
+        package,
+        min_cgpa,
+        required_skills
+      ]
     );
 
+    // 2️⃣ Find eligible students
+    const students = await pool.query(
+      `SELECT name, email
+       FROM students
+       WHERE cgpa >= $1
+       AND branch = ANY($2)
+       AND skills && $3
+       AND is_blacklisted = false`,
+      [min_cgpa, branches_allowed, required_skills]
+    );
+
+    // 3️⃣ Send automated mails
+    for (const student of students.rows) {
+      await sendMail(
+        student.email,
+        `New Placement Opportunity – ${name}`,
+        `Hello ${student.name},
+
+A new company "${name}" has opened placement registrations.
+
+You are eligible based on your profile.
+Please login to the placement portal to apply.
+
+– NFSU Dharwad Placement Cell`
+      );
+    }
+
     res.status(201).json({
-      message: "Company created successfully",
-      company: result.rows[0]
+      message: "Company created & emails sent",
+      company: companyResult.rows[0],
+      notified_students: students.rowCount
     });
+
   } catch (err) {
     console.error("Create company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
@@ -79,31 +160,36 @@ router.post("/", auth("admin"), async (req, res) => {
 });
 
 /**
- * UPDATE company details
+ * UPDATE company
  * Admin only
- * /api/company/:id
  */
 router.put("/:id", auth("admin"), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, domain, location, eligibility_criteria, branches_allowed, package } = req.body;
 
     const result = await pool.query(
       `UPDATE companies
-       SET name = $1, domain = $2, location = $3, eligibility_criteria = $4, branches_allowed = $5, package = $6
-       WHERE id = $7
-       RETURNING id, name, domain, location, eligibility_criteria, branches_allowed, package`,
-      [name, domain, location, eligibility_criteria, branches_allowed, package, id]
+       SET name=$1, domain=$2, location=$3,
+           eligibility_criteria=$4, branches_allowed=$5, package=$6
+       WHERE id=$7
+       RETURNING *`,
+      [
+        req.body.name,
+        req.body.domain,
+        req.body.location,
+        req.body.eligibility_criteria,
+        req.body.branches_allowed,
+        req.body.package,
+        id
+      ]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    res.status(200).json({
-      message: "Company updated successfully",
-      company: result.rows[0]
-    });
+    res.json({ message: "Company updated", company: result.rows[0] });
+
   } catch (err) {
     console.error("Update company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
@@ -111,26 +197,22 @@ router.put("/:id", auth("admin"), async (req, res) => {
 });
 
 /**
- * DELETE a company
+ * DELETE company
  * Admin only
- * /api/company/:id
  */
 router.delete("/:id", auth("admin"), async (req, res) => {
   try {
-    const { id } = req.params;
-
     const result = await pool.query(
-      `DELETE FROM companies
-       WHERE id = $1
-       RETURNING id`,
-      [id]
+      `DELETE FROM companies WHERE id=$1 RETURNING id`,
+      [req.params.id]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    res.status(200).json({ message: "Company deleted successfully" });
+    res.json({ message: "Company deleted" });
+
   } catch (err) {
     console.error("Delete company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
