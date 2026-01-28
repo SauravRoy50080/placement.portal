@@ -1,16 +1,23 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
+
+import authRoutes from "./routes/auth.js";
+import studentRoutes from "./routes/student.js";
+import adminRoutes from "./routes/admin.js";
+import companyRoutes from "./routes/company.js";
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/student", require("./routes/student"));
-app.use("/api/admin", require("./routes/admin"));
-app.use("/api/company", require("./routes/company"));
+app.use("/api/auth", authRoutes);
+app.use("/api/student", studentRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/company", companyRoutes);
 
-app.listen(5000, () => {
-  console.log("Backend running on port 5000");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Backend running on port ${PORT}`);
 });
 
