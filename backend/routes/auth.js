@@ -11,12 +11,14 @@ router.post("/student/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
+    /* 1️⃣ Validate input */
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      return res.status(400).json({
+        error: "Email and password are required"
+      });
     }
 
-    // Fetch student
+    /* 2️⃣ Fetch student from DB */
     const result = await pool.query(
       `SELECT 
          enrollment_no,
@@ -29,39 +31,46 @@ router.post("/student/login", async (req, res) => {
       [email]
     );
 
-    // Check user exists
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(401).json({
+        error: "Invalid email or password"
+      });
     }
 
     const student = result.rows[0];
 
-    // Block blacklisted students
+    /* 3️⃣ Check blacklist status */
     if (student.is_blacklisted) {
       return res.status(403).json({
-        error: "You are blacklisted. Contact admin."
+        error: "Your account has been blacklisted. Please contact the administrator."
       });
     }
 
-    // Verify password
-    const validPassword = await bcrypt.compare(password, student.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    /* 4️⃣ Verify password */
+    const isPasswordValid = await bcrypt.compare(password, student.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        error: "Invalid email or password"
+      });
     }
 
-    // Generate JWT
+    /* 5️⃣ Generate JWT with expiration */
     const token = jwt.sign(
       {
         enrollment_no: student.enrollment_no,
         role: "student"
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      {
+        expiresIn: "24h" // ⏳ token expires in 24 hours
+      }
     );
 
-    // Success response
-    res.json({
+    /* 6️⃣ Success response */
+    res.status(200).json({
+      message: "Login successful",
       token,
+      expiresIn: "24h",
       student: {
         enrollment_no: student.enrollment_no,
         name: student.name,
@@ -70,8 +79,12 @@ router.post("/student/login", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Student login error:", err.message);
-    res.status(500).json({ error: "Server error" });
+    console.error("Student login error:", err);
+
+    /* 7️⃣ Centralized error response */
+    res.status(500).json({
+      error: "Internal server error. Please try again later."
+    });
   }
 });
 
