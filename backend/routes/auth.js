@@ -13,18 +13,18 @@ router.post("/student/login", async (req, res) => {
   try {
     let { email, password } = req.body;
 
-    // Validate input
+    // 1️⃣ Validate input
     if (!email || !password) {
       return res.status(400).json({
-        error: "Email and password are required"
+        error: "Email and password are required."
       });
     }
 
     email = email.trim().toLowerCase();
 
-    // Fetch student
+    // 2️⃣ Fetch student from DB
     const result = await pool.query(
-      `SELECT
+      `SELECT 
          enrollment_no,
          name,
          college_email,
@@ -37,28 +37,28 @@ router.post("/student/login", async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(401).json({
-        error: "Invalid email or password"
+        error: "Invalid email or password."
       });
     }
 
     const student = result.rows[0];
 
-    // Check blacklist
+    // 3️⃣ Check blacklist status
     if (student.is_blacklisted) {
       return res.status(403).json({
-        error: "Your account has been blacklisted. Contact admin."
+        error: "Your account has been blacklisted. Please contact the administrator."
       });
     }
 
-    // Verify password
+    // 4️⃣ Verify password
     const isPasswordValid = await bcrypt.compare(password, student.password);
     if (!isPasswordValid) {
       return res.status(401).json({
-        error: "Invalid email or password"
+        error: "Invalid email or password."
       });
     }
 
-    // Generate JWT
+    // 5️⃣ Generate JWT
     const token = jwt.sign(
       {
         enrollment_no: student.enrollment_no,
@@ -68,6 +68,7 @@ router.post("/student/login", async (req, res) => {
       { expiresIn: "24h" }
     );
 
+    // 6️⃣ Success response
     res.status(200).json({
       message: "Login successful",
       token,
@@ -82,7 +83,7 @@ router.post("/student/login", async (req, res) => {
   } catch (err) {
     console.error("Student login error:", err.message);
     res.status(500).json({
-      error: "Internal server error"
+      error: "Internal server error. Please try again later."
     });
   }
 });
