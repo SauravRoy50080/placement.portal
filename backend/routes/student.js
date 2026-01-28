@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 
 /**
  * GET eligible companies for the logged-in student
+ * Accessible by students only
  * /api/student/eligible-companies
  */
 router.get("/eligible-companies", auth("student"), async (req, res) => {
@@ -22,13 +23,14 @@ router.get("/eligible-companies", auth("student"), async (req, res) => {
 
     const student = studentResult.rows[0];
 
+    // Check if student is blacklisted
     if (student.is_blacklisted) {
       return res.status(403).json({
-        error: "You are blacklisted and cannot apply to companies"
+        error: "You are blacklisted and cannot apply to companies."
       });
     }
 
-    // Fetch eligible companies: min_cgpa and branch match
+    // Fetch eligible companies: CGPA and branch match
     const companiesResult = await pool.query(
       `SELECT *
        FROM companies
@@ -41,13 +43,14 @@ router.get("/eligible-companies", auth("student"), async (req, res) => {
     res.status(200).json({ companies: companiesResult.rows });
 
   } catch (err) {
-    console.error("Fetch eligible companies error:", err);
+    console.error("Fetch eligible companies error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 /**
  * POST apply to a company
+ * Accessible by students only
  * /api/student/apply/:companyId
  */
 router.post("/apply/:companyId", auth("student"), async (req, res) => {
@@ -68,13 +71,14 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
 
     const student = studentResult.rows[0];
 
+    // Check blacklist status
     if (student.is_blacklisted) {
       return res.status(403).json({
-        error: "You are blacklisted and cannot apply to companies"
+        error: "You are blacklisted and cannot apply to companies."
       });
     }
 
-    // Check company exists
+    // Fetch company
     const companyResult = await pool.query(
       `SELECT id, min_cgpa, branches_allowed
        FROM companies
@@ -90,9 +94,7 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
 
     // Check eligibility
     if (student.cgpa < company.min_cgpa || !company.branches_allowed.includes(student.branch)) {
-      return res.status(403).json({
-        error: "You are not eligible to apply for this company"
-      });
+      return res.status(403).json({ error: "You are not eligible to apply for this company." });
     }
 
     // Prevent duplicate applications
@@ -104,7 +106,7 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
     );
 
     if (applicationCheck.rows.length > 0) {
-      return res.status(400).json({ error: "You have already applied to this company" });
+      return res.status(400).json({ error: "You have already applied to this company." });
     }
 
     // Insert application
@@ -114,13 +116,12 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
       [student.enrollment_no, company.id]
     );
 
-    res.status(201).json({ message: "Applied successfully" });
+    res.status(201).json({ message: "Applied successfully." });
 
   } catch (err) {
-    console.error("Apply company error:", err);
+    console.error("Apply company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 module.exports = router;
-
