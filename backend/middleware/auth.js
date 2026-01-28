@@ -1,35 +1,32 @@
+import jwt from "jsonwebtoken";
 
-const jwt = require("jsonwebtoken");
-
-module.exports = (role) => {
+/**
+ * JWT Authentication & Role Authorization Middleware
+ * @param {string|null} role - "admin" | "student" | null
+ */
+const auth = (role = null) => {
   return (req, res, next) => {
     try {
-      // 1️⃣ Get token from headers
-      let token = req.headers.authorization;
-      if (!token) {
-        return res.status(401).json({ error: "Access denied. No token provided." });
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "No token provided" });
       }
 
-      // 2️⃣ Remove 'Bearer ' if present
-      if (token.startsWith("Bearer ")) {
-        token = token.slice(7, token.length).trim();
-      }
-
-      // 3️⃣ Verify token
+      const token = authHeader.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // 4️⃣ Check role if specified
-      if (role && decoded.role !== role) {
-        return res.status(403).json({ error: "Forbidden. You do not have access to this resource." });
-      }
-
-      // 5️⃣ Attach user info to request
       req.user = decoded;
+
+      if (role && decoded.role !== role) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       next();
     } catch (err) {
-      console.error("Auth middleware error:", err.message);
-      return res.status(401).json({ error: "Invalid or expired token." });
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
   };
 };
+
+export default auth;
