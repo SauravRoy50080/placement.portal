@@ -3,7 +3,7 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 
 /**
- * GET all students with filters
+ * GET all students with optional filters
  * Admin only
  * /api/admin/studentss
  */
@@ -24,7 +24,7 @@ router.get("/studentss", auth("admin"), async (req, res) => {
       WHERE 1=1
     `;
 
-    let values = [];
+    const values = [];
     let idx = 1;
 
     if (branch) {
@@ -52,26 +52,26 @@ router.get("/studentss", auth("admin"), async (req, res) => {
     }
 
     const result = await pool.query(query, values);
-    res.json(result.rows);
+    res.status(200).json({ students: result.rows });
 
   } catch (err) {
     console.error("Admin fetch students error:", err.message);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 /**
- * Blacklist student by enrollment number
+ * Blacklist a student by enrollment_no
  * Admin only
  * /api/admin/blacklist/:enrollment_no
  */
 router.put("/blacklist/:enrollment_no", auth("admin"), async (req, res) => {
   try {
     const result = await pool.query(
-      `UPDATE studentss 
-       SET is_blacklisted = true 
-       WHERE enrollment_no = $1 
-       RETURNING enrollment_no`,
+      `UPDATE studentss
+       SET is_blacklisted = true
+       WHERE enrollment_no = $1
+       RETURNING enrollment_no, name`,
       [req.params.enrollment_no]
     );
 
@@ -79,26 +79,29 @@ router.put("/blacklist/:enrollment_no", auth("admin"), async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    res.json({ message: "Student blacklisted successfully" });
+    res.status(200).json({
+      message: "Student blacklisted successfully",
+      student: result.rows[0]
+    });
 
   } catch (err) {
-    console.error("Blacklist error:", err.message);
-    res.status(500).json({ error: "Server error" });
+    console.error("Blacklist student error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 /**
- * Unblacklist student
+ * Unblacklist a student by enrollment_no
  * Admin only
  * /api/admin/unblacklist/:enrollment_no
  */
 router.put("/unblacklist/:enrollment_no", auth("admin"), async (req, res) => {
   try {
     const result = await pool.query(
-      `UPDATE studentss 
-       SET is_blacklisted = false 
-       WHERE enrollment_no = $1 
-       RETURNING enrollment_no`,
+      `UPDATE studentss
+       SET is_blacklisted = false
+       WHERE enrollment_no = $1
+       RETURNING enrollment_no, name`,
       [req.params.enrollment_no]
     );
 
@@ -106,11 +109,14 @@ router.put("/unblacklist/:enrollment_no", auth("admin"), async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    res.json({ message: "Student removed from blacklist" });
+    res.status(200).json({
+      message: "Student removed from blacklist successfully",
+      student: result.rows[0]
+    });
 
   } catch (err) {
-    console.error("Unblacklist error:", err.message);
-    res.status(500).json({ error: "Server error" });
+    console.error("Unblacklist student error:", err.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
