@@ -323,5 +323,16 @@ UPDATE applications
 SET application_status = 'Rejected'
 WHERE enrollment_no = 5 AND company_id = 7;
 
+ALTER TABLE studentss
+DROP CONSTRAINT studentss_password_check;
+INSERT INTO studentss
+(first_name, last_name, gender, date_of_birth, department,
+ year_of_study, cgpa, email, phone, password, admission_date)
+VALUES
+('Dummy','Student','Male','2004-01-01','CSE',
+ 2,7.0,'dummy@student.com','8888888888','897676','2023-08-01');
+
+
+
 
 
