@@ -10,13 +10,13 @@ const auth = require("../middleware/auth");
 router.get("/", auth(), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, domain, location, eligibility_criteria, package
+      `SELECT id, name, domain, location, eligibility_criteria, branches_allowed, package
        FROM companies
-       ORDER BY name`
+       ORDER BY package DESC`
     );
     res.status(200).json({ companies: result.rows });
   } catch (err) {
-    console.error("Fetch companies error:", err);
+    console.error("Fetch companies error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -30,7 +30,7 @@ router.get("/:id", auth(), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT id, name, domain, location, eligibility_criteria, package
+      `SELECT id, name, domain, location, eligibility_criteria, branches_allowed, package
        FROM companies
        WHERE id = $1`,
       [id]
@@ -42,7 +42,7 @@ router.get("/:id", auth(), async (req, res) => {
 
     res.status(200).json({ company: result.rows[0] });
   } catch (err) {
-    console.error("Fetch company error:", err);
+    console.error("Fetch company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -54,17 +54,18 @@ router.get("/:id", auth(), async (req, res) => {
  */
 router.post("/", auth("admin"), async (req, res) => {
   try {
-    const { name, domain, location, eligibility_criteria, package } = req.body;
+    const { name, domain, location, eligibility_criteria, branches_allowed, package } = req.body;
 
-    if (!name || !domain || !location || !eligibility_criteria || !package) {
+    // Validate input
+    if (!name || !domain || !location || !eligibility_criteria || !branches_allowed || !package) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
     const result = await pool.query(
-      `INSERT INTO companies (name, domain, location, eligibility_criteria, package)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, name, domain, location, eligibility_criteria, package`,
-      [name, domain, location, eligibility_criteria, package]
+      `INSERT INTO companies (name, domain, location, eligibility_criteria, branches_allowed, package)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, domain, location, eligibility_criteria, branches_allowed, package`,
+      [name, domain, location, eligibility_criteria, branches_allowed, package]
     );
 
     res.status(201).json({
@@ -72,7 +73,7 @@ router.post("/", auth("admin"), async (req, res) => {
       company: result.rows[0]
     });
   } catch (err) {
-    console.error("Create company error:", err);
+    console.error("Create company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -85,14 +86,14 @@ router.post("/", auth("admin"), async (req, res) => {
 router.put("/:id", auth("admin"), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, domain, location, eligibility_criteria, package } = req.body;
+    const { name, domain, location, eligibility_criteria, branches_allowed, package } = req.body;
 
     const result = await pool.query(
       `UPDATE companies
-       SET name = $1, domain = $2, location = $3, eligibility_criteria = $4, package = $5
-       WHERE id = $6
-       RETURNING id, name, domain, location, eligibility_criteria, package`,
-      [name, domain, location, eligibility_criteria, package, id]
+       SET name = $1, domain = $2, location = $3, eligibility_criteria = $4, branches_allowed = $5, package = $6
+       WHERE id = $7
+       RETURNING id, name, domain, location, eligibility_criteria, branches_allowed, package`,
+      [name, domain, location, eligibility_criteria, branches_allowed, package, id]
     );
 
     if (result.rowCount === 0) {
@@ -104,7 +105,7 @@ router.put("/:id", auth("admin"), async (req, res) => {
       company: result.rows[0]
     });
   } catch (err) {
-    console.error("Update company error:", err);
+    console.error("Update company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -131,10 +132,9 @@ router.delete("/:id", auth("admin"), async (req, res) => {
 
     res.status(200).json({ message: "Company deleted successfully" });
   } catch (err) {
-    console.error("Delete company error:", err);
+    console.error("Delete company error:", err.message);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 module.exports = router;
-
