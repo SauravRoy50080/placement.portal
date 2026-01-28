@@ -9,14 +9,16 @@ const jwt = require("jsonwebtoken");
  */
 router.post("/student/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     /* 1️⃣ Validate input */
     if (!email || !password) {
       return res.status(400).json({
-        error: "Email and password are required"
+        error: "Email and password are required."
       });
     }
+
+    email = email.trim().toLowerCase();
 
     /* 2️⃣ Fetch student from DB */
     const result = await pool.query(
@@ -33,7 +35,7 @@ router.post("/student/login", async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(401).json({
-        error: "Invalid email or password"
+        error: "Invalid email or password."
       });
     }
 
@@ -50,7 +52,7 @@ router.post("/student/login", async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, student.password);
     if (!isPasswordValid) {
       return res.status(401).json({
-        error: "Invalid email or password"
+        error: "Invalid email or password."
       });
     }
 
@@ -62,7 +64,7 @@ router.post("/student/login", async (req, res) => {
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: "24h" // ⏳ token expires in 24 hours
+        expiresIn: "24h" // token expires in 24 hours
       }
     );
 
@@ -79,9 +81,8 @@ router.post("/student/login", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Student login error:", err);
-
     /* 7️⃣ Centralized error response */
+    console.error("Student login error:", err.message);
     res.status(500).json({
       error: "Internal server error. Please try again later."
     });
