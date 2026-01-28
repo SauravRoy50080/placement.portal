@@ -1,6 +1,8 @@
-const router = require("express").Router();
-const pool = require("../db");
-const auth = require("../middleware/auth");
+import { Router } from "express";
+import pool from "../db.js";
+import auth from "../middleware/auth.js";
+
+const router = Router();
 
 /**
  * GET eligible companies for the logged-in student
@@ -12,7 +14,7 @@ router.get("/eligible-companies", auth("student"), async (req, res) => {
     // Fetch student using enrollment_no from JWT
     const studentResult = await pool.query(
       `SELECT enrollment_no, branch, cgpa, is_blacklisted
-       FROM studentss
+       FROM students
        WHERE enrollment_no = $1`,
       [req.user.enrollment_no]
     );
@@ -30,7 +32,7 @@ router.get("/eligible-companies", auth("student"), async (req, res) => {
       });
     }
 
-    // Fetch eligible companies: CGPA and branch match
+    // Fetch eligible companies
     const companiesResult = await pool.query(
       `SELECT *
        FROM companies
@@ -55,12 +57,12 @@ router.get("/eligible-companies", auth("student"), async (req, res) => {
  */
 router.post("/apply/:companyId", auth("student"), async (req, res) => {
   try {
-    const companyId = req.params.companyId;
+    const { companyId } = req.params;
 
     // Fetch student
     const studentResult = await pool.query(
       `SELECT enrollment_no, branch, cgpa, is_blacklisted
-       FROM studentss
+       FROM students
        WHERE enrollment_no = $1`,
       [req.user.enrollment_no]
     );
@@ -71,7 +73,6 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
 
     const student = studentResult.rows[0];
 
-    // Check blacklist status
     if (student.is_blacklisted) {
       return res.status(403).json({
         error: "You are blacklisted and cannot apply to companies."
@@ -92,21 +93,29 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
 
     const company = companyResult.rows[0];
 
-    // Check eligibility
-    if (student.cgpa < company.min_cgpa || !company.branches_allowed.includes(student.branch)) {
-      return res.status(403).json({ error: "You are not eligible to apply for this company." });
+    // Eligibility check
+    if (
+      student.cgpa < company.min_cgpa ||
+      !company.branches_allowed.includes(student.branch)
+    ) {
+      return res.status(403).json({
+        error: "You are not eligible to apply for this company."
+      });
     }
 
-    // Prevent duplicate applications
+    // Prevent duplicate application
     const applicationCheck = await pool.query(
-      `SELECT *
+      `SELECT 1
        FROM applications
-       WHERE student_enrollment_no = $1 AND company_id = $2`,
+       WHERE student_enrollment_no = $1
+       AND company_id = $2`,
       [student.enrollment_no, company.id]
     );
 
     if (applicationCheck.rows.length > 0) {
-      return res.status(400).json({ error: "You have already applied to this company." });
+      return res.status(400).json({
+        error: "You have already applied to this company."
+      });
     }
 
     // Insert application
@@ -124,4 +133,4 @@ router.post("/apply/:companyId", auth("student"), async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
