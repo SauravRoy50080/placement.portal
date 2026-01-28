@@ -1,7 +1,9 @@
-const router = require("express").Router();
-const pool = require("../db");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+import { Router } from "express";
+import pool from "../db.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+
+const router = Router();
 
 /**
  * Student Login
@@ -11,7 +13,7 @@ router.post("/student/login", async (req, res) => {
   try {
     let { email, password } = req.body;
 
-    /* 1️⃣ Validate input */
+    // 1️⃣ Validate input
     if (!email || !password) {
       return res.status(400).json({
         error: "Email and password are required."
@@ -20,7 +22,7 @@ router.post("/student/login", async (req, res) => {
 
     email = email.trim().toLowerCase();
 
-    /* 2️⃣ Fetch student from DB */
+    // 2️⃣ Fetch student from DB
     const result = await pool.query(
       `SELECT 
          enrollment_no,
@@ -28,7 +30,7 @@ router.post("/student/login", async (req, res) => {
          college_email,
          password,
          is_blacklisted
-       FROM studentss
+       FROM students
        WHERE college_email = $1`,
       [email]
     );
@@ -41,14 +43,14 @@ router.post("/student/login", async (req, res) => {
 
     const student = result.rows[0];
 
-    /* 3️⃣ Check blacklist status */
+    // 3️⃣ Check blacklist status
     if (student.is_blacklisted) {
       return res.status(403).json({
         error: "Your account has been blacklisted. Please contact the administrator."
       });
     }
 
-    /* 4️⃣ Verify password */
+    // 4️⃣ Verify password
     const isPasswordValid = await bcrypt.compare(password, student.password);
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -56,7 +58,7 @@ router.post("/student/login", async (req, res) => {
       });
     }
 
-    /* 5️⃣ Generate JWT with expiration */
+    // 5️⃣ Generate JWT
     const token = jwt.sign(
       {
         enrollment_no: student.enrollment_no,
@@ -64,11 +66,11 @@ router.post("/student/login", async (req, res) => {
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: "24h" // token expires in 24 hours
+        expiresIn: "24h"
       }
     );
 
-    /* 6️⃣ Success response */
+    // 6️⃣ Success response
     res.status(200).json({
       message: "Login successful",
       token,
@@ -81,7 +83,6 @@ router.post("/student/login", async (req, res) => {
     });
 
   } catch (err) {
-    /* 7️⃣ Centralized error response */
     console.error("Student login error:", err.message);
     res.status(500).json({
       error: "Internal server error. Please try again later."
@@ -89,4 +90,4 @@ router.post("/student/login", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
