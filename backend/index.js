@@ -1,10 +1,13 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.js";
 import studentRoutes from "./routes/student.js";
 import adminRoutes from "./routes/admin.js";
 import companyRoutes from "./routes/company.js";
+
+dotenv.config();
 
 const app = express();
 
@@ -20,4 +23,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
-
