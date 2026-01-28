@@ -1,13 +1,15 @@
-const router = require("express").Router();
-const pool = require("../db");
-const auth = require("../middleware/auth");
+import { Router } from "express";
+import pool from "../db.js";
+import auth from "../middleware/auth.js";
+
+const router = Router();
 
 /**
  * GET all students with optional filters
  * Admin only
- * /api/admin/studentss
+ * /api/admin/students
  */
-router.get("/studentss", auth("admin"), async (req, res) => {
+router.get("/students", auth("admin"), async (req, res) => {
   try {
     const { branch, minCgpa, skill, blacklisted } = req.query;
 
@@ -20,7 +22,7 @@ router.get("/studentss", auth("admin"), async (req, res) => {
         cgpa,
         skills,
         is_blacklisted
-      FROM studentss
+      FROM students
       WHERE 1=1
     `;
 
@@ -61,14 +63,13 @@ router.get("/studentss", auth("admin"), async (req, res) => {
 });
 
 /**
- * Blacklist a student by enrollment_no
- * Admin only
+ * Blacklist a student
  * /api/admin/blacklist/:enrollment_no
  */
 router.put("/blacklist/:enrollment_no", auth("admin"), async (req, res) => {
   try {
     const result = await pool.query(
-      `UPDATE studentss
+      `UPDATE students
        SET is_blacklisted = true
        WHERE enrollment_no = $1
        RETURNING enrollment_no, name`,
@@ -91,14 +92,13 @@ router.put("/blacklist/:enrollment_no", auth("admin"), async (req, res) => {
 });
 
 /**
- * Unblacklist a student by enrollment_no
- * Admin only
+ * Unblacklist a student
  * /api/admin/unblacklist/:enrollment_no
  */
 router.put("/unblacklist/:enrollment_no", auth("admin"), async (req, res) => {
   try {
     const result = await pool.query(
-      `UPDATE studentss
+      `UPDATE students
        SET is_blacklisted = false
        WHERE enrollment_no = $1
        RETURNING enrollment_no, name`,
@@ -120,4 +120,4 @@ router.put("/unblacklist/:enrollment_no", auth("admin"), async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
